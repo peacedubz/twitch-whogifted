@@ -15,20 +15,26 @@ module.exports = async (req, res) => {
         // Strip out annoying escape characters that modern web frameworks use
         const rawText = html.replace(/\\"/g, '"').replace(/&quot;/g, '"');
 
-        // 1. Find exactly where your target list begins
-        const targetList = "Super Sundays - Games from Chat";
-        const startIndex = rawText.indexOf(targetList);
+        // 1. Find the list header flexibly, ignoring case and potential extra spaces
+        const listHeaderRegex = /Super Sundays\s*-\s*Games from Chat/i;
+        const matchHeader = rawText.match(listHeaderRegex);
         
-        if (startIndex === -1) {
-            return res.send(`Error: Could not find the "${targetList}" list on the profile.`);
+        if (!matchHeader) {
+            return res.send("Error: Could not find the 'Super Sundays - Games from Chat' list header on the profile.");
         }
+        const startIndex = matchHeader.index;
 
         // 2. Find where the next list begins to create an airtight boundary
-        const nextList = "Super Sundays - Games from Studios";
-        let endIndex = rawText.indexOf(nextList, startIndex);
+        // Applying the same flexible regex approach here to ensure it doesn't break
+        const nextListRegex = /Super Sundays\s*-\s*Games from Studios/i;
+        const matchNext = rawText.substring(startIndex).match(nextListRegex);
         
-        // Fallback: If you ever delete/rename the 'Studios' list, just read to the end of the page
-        if (endIndex === -1) {
+        let endIndex;
+        if (matchNext) {
+            // Add the index of the next list relative to where we started cutting
+            endIndex = startIndex + matchNext.index;
+        } else {
+            // Fallback: If you ever delete/rename the 'Studios' list, just read to the end of the page
             endIndex = rawText.length; 
         }
 
