@@ -9,32 +9,34 @@ module.exports = async (req, res) => {
 
     try {
         const { data: html } = await axios.get('https://www.rankone.global/peacedubz/lists', {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
         });
 
         // Strip out annoying escape characters that modern web frameworks use
         const rawText = html.replace(/\\"/g, '"').replace(/&quot;/g, '"');
 
-        // 1. Find the list header flexibly, ignoring case and potential extra spaces
-        const listHeaderRegex = /Super Sundays\s*-\s*Games from Chat/i;
-        const matchHeader = rawText.match(listHeaderRegex);
+        // 1. Anchor to the list description instead of the title. 
+        // This guarantees we are in the main body and bypasses hidden title formatting!
+        const startRegex = /Gifted games from Twitch Viewers/i;
+        const matchStart = rawText.match(startRegex);
         
-        if (!matchHeader) {
-            return res.send("Error: Could not find the 'Super Sundays - Games from Chat' list header on the profile.");
+        if (!matchStart) {
+            return res.send("Error: Could not find the Super Sundays description anchor on the profile.");
         }
-        const startIndex = matchHeader.index;
+        const startIndex = matchStart.index;
 
-        // 2. Find where the next list begins to create an airtight boundary
-        // Applying the same flexible regex approach here to ensure it doesn't break
-        const nextListRegex = /Super Sundays\s*-\s*Games from Studios/i;
+        // 2. Find the boundary for the next list using an ultra-forgiving search
+        // This allows up to 100 characters of invisible HTML tags between the words
+        const nextListRegex = /Super[\s\S]{0,100}?Sundays[\s\S]{0,100}?Games[\s\S]{0,100}?Studios/i;
         const matchNext = rawText.substring(startIndex).match(nextListRegex);
         
         let endIndex;
         if (matchNext) {
-            // Add the index of the next list relative to where we started cutting
             endIndex = startIndex + matchNext.index;
         } else {
-            // Fallback: If you ever delete/rename the 'Studios' list, just read to the end of the page
             endIndex = rawText.length; 
         }
 
@@ -48,7 +50,7 @@ module.exports = async (req, res) => {
 
         while ((match = searchRegex.exec(listChunk)) !== null) {
             // Grab the chunk of text immediately following the game name
-            const noteChunk = listChunk.substring(match.index, match.index + 1500);
+            const noteChunk = listChunk.substring(match.index, match.index + 2000);
             
             // Scan that specific chunk for your "Gifted by" phrase
             const noteMatch = noteChunk.match(/(Gifted by [a-zA-Z0-9_ -]+)/i);
@@ -64,7 +66,7 @@ module.exports = async (req, res) => {
             if (listChunk.toLowerCase().includes(searchGame)) {
                 return res.send(`"${req.query.game}" is in Super Sundays, but there is no gifter note!`);
             }
-            return res.send(`Could not find "${req.query.game}" in the Super Sundays - Games from Chat list.`);
+            return res.send(`Could not find "${req.query.game}" in the Super Sundays list.`);
         }
 
         return res.send(`This game was ${finalNote.trim()}!`);
