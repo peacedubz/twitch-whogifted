@@ -12,42 +12,56 @@ module.exports = async (req, res) => {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
         });
 
-        // RankOne uses a modern framework (Next.js App Router) which hides data inside complex script chunks.
-        // We will scan the raw webpage text directly instead of looking for a clean JSON block.
-        
-        // 1. Sanitize the HTML string slightly to make searching it easier
+        // Strip out annoying escape characters that modern web frameworks use
         const rawText = html.replace(/\\"/g, '"').replace(/&quot;/g, '"');
 
-        // 2. Find the game title in the raw code
-        const titleRegex = new RegExp(`"title"\\s*:\\s*"([^"]*${searchGame}[^"]*)"`, 'i');
-        const titleMatch = rawText.match(titleRegex);
-
-        if (!titleMatch) {
-            return res.send(`Could not find a game matching "${req.query.game}" on the list.`);
+        // 1. Find exactly where your target list begins
+        const targetList = "Super Sundays - Games from Chat";
+        const startIndex = rawText.indexOf(targetList);
+        
+        if (startIndex === -1) {
+            return res.send(`Error: Could not find the "${targetList}" list on the profile.`);
         }
 
-        const foundTitle = titleMatch[1];
-
-        // 3. Grab the chunk of text immediately surrounding the title to find its specific notes
-        const textChunk = rawText.substring(titleMatch.index, titleMatch.index + 1200);
+        // 2. Find where the next list begins to create an airtight boundary
+        const nextList = "Super Sundays - Games from Studios";
+        let endIndex = rawText.indexOf(nextList, startIndex);
         
-        // 4. Look for the "notes" key, or directly for the phrase "Gifted by"
-        const notesRegex = /"notes"\s*:\s*"([^"]+)"/i;
-        const fallbackRegex = /(Gifted by [a-zA-Z0-9_ -]+)/i;
-        
-        const notesMatch = textChunk.match(notesRegex);
-        const fallbackMatch = textChunk.match(fallbackRegex);
-
-        let finalNote = '';
-        if (notesMatch && notesMatch[1].toLowerCase().includes('gifted')) {
-            finalNote = notesMatch[1];
-        } else if (fallbackMatch) {
-            finalNote = fallbackMatch[1];
-        } else {
-            return res.send(`${foundTitle} is on the list, but there's no gifter note!`);
+        // Fallback: If you ever delete/rename the 'Studios' list, just read to the end of the page
+        if (endIndex === -1) {
+            endIndex = rawText.length; 
         }
 
-        return res.send(`This game (${foundTitle}) was ${finalNote.trim()}!`);
+        // 3. Slice out ONLY the text belonging to the "Games from Chat" list
+        const listChunk = rawText.substring(startIndex, endIndex);
+
+        // 4. Search for the game specifically inside this isolated chunk
+        const searchRegex = new RegExp(searchGame, 'gi');
+        let match;
+        let finalNote = null;
+
+        while ((match = searchRegex.exec(listChunk)) !== null) {
+            // Grab the chunk of text immediately following the game name
+            const noteChunk = listChunk.substring(match.index, match.index + 1500);
+            
+            // Scan that specific chunk for your "Gifted by" phrase
+            const noteMatch = noteChunk.match(/(Gifted by [a-zA-Z0-9_ -]+)/i);
+            
+            if (noteMatch) {
+                finalNote = noteMatch[1];
+                break; // Stop looking once we find the note!
+            }
+        }
+
+        if (!finalNote) {
+            // Distinguish between "game found but no note" and "game not in this specific list at all"
+            if (listChunk.toLowerCase().includes(searchGame)) {
+                return res.send(`"${req.query.game}" is in Super Sundays, but there is no gifter note!`);
+            }
+            return res.send(`Could not find "${req.query.game}" in the Super Sundays - Games from Chat list.`);
+        }
+
+        return res.send(`This game was ${finalNote.trim()}!`);
 
     } catch (error) {
         console.error(error);
