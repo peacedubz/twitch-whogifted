@@ -1,8 +1,6 @@
 const axios = require('axios');
-const cheerio = require('cheerio');
 
 module.exports = async (req, res) => {
-    // 1. Get the game name from the Twitch command argument
     const searchGame = req.query.game ? req.query.game.trim().toLowerCase() : '';
     
     if (!searchGame) {
@@ -10,58 +8,46 @@ module.exports = async (req, res) => {
     }
 
     try {
-        // 2. Fetch the HTML from your RankOne lists page
-        const targetUrl = 'https://www.rankone.global/peacedubz/lists';
-        const { data: html } = await axios.get(targetUrl, {
+        const { data: html } = await axios.get('https://www.rankone.global/peacedubz/lists', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
         });
 
-        const $ = cheerio.load(html);
+        // RankOne uses a modern framework (Next.js App Router) which hides data inside complex script chunks.
+        // We will scan the raw webpage text directly instead of looking for a clean JSON block.
         
-        // 3. Locate the Next.js data script block where the list data lives
-        const nextDataScript = $('#__NEXT_DATA__').html();
-        
-        if (!nextDataScript) {
-            return res.send("Error: Could not retrieve the list structure from RankOne.");
+        // 1. Sanitize the HTML string slightly to make searching it easier
+        const rawText = html.replace(/\\"/g, '"').replace(/&quot;/g, '"');
+
+        // 2. Find the game title in the raw code
+        const titleRegex = new RegExp(`"title"\\s*:\\s*"([^"]*${searchGame}[^"]*)"`, 'i');
+        const titleMatch = rawText.match(titleRegex);
+
+        if (!titleMatch) {
+            return res.send(`Could not find a game matching "${req.query.game}" on the list.`);
         }
 
-        const parsedData = JSON.parse(nextDataScript);
+        const foundTitle = titleMatch[1];
+
+        // 3. Grab the chunk of text immediately surrounding the title to find its specific notes
+        const textChunk = rawText.substring(titleMatch.index, titleMatch.index + 1200);
         
-        // Target where RankOne stores the user's specific games/lists in the page state
-        // Note: exact property depth may vary slightly depending on their state object, 
-        // but typically lives inside queries or pageProps.
-        const pageProps = parsedData.props?.pageProps || {};
+        // 4. Look for the "notes" key, or directly for the phrase "Gifted by"
+        const notesRegex = /"notes"\s*:\s*"([^"]+)"/i;
+        const fallbackRegex = /(Gifted by [a-zA-Z0-9_ -]+)/i;
         
-        // Fallback to searching the raw string if the object path shifts, 
-        // but ideally we iterate through the game objects:
-        let gamesList = [];
-        if (pageProps.games) {
-            gamesList = pageProps.games;
+        const notesMatch = textChunk.match(notesRegex);
+        const fallbackMatch = textChunk.match(fallbackRegex);
+
+        let finalNote = '';
+        if (notesMatch && notesMatch[1].toLowerCase().includes('gifted')) {
+            finalNote = notesMatch[1];
+        } else if (fallbackMatch) {
+            finalNote = fallbackMatch[1];
         } else {
-            // Flatten lists if they separate them by categories (Playing, Backlog, etc.)
-            const lists = pageProps.lists || [];
-            lists.forEach(list => {
-                if (list.games) gamesList.push(...list.games);
-            });
+            return res.send(`${foundTitle} is on the list, but there's no gifter note!`);
         }
 
-        // 4. Search for the game requested by chat
-        // We match if the title contains the text provided in chat
-        const foundGame = gamesList.find(g => g.title?.toLowerCase().includes(searchGame));
-
-        if (!foundGame) {
-            return res.send(`Could not find a game matching "${req.query.game}" on PeaceDubz's RankOne lists.`);
-        }
-
-        // 5. Extract the note text (e.g., "Gifted by Klombi" as seen in image_55c0e7.png)
-        const notes = foundGame.notes || foundGame.description || '';
-
-        if (!notes || !notes.toLowerCase().includes('gifted')) {
-            return res.send(`${foundGame.title} is on the list, but there's no gifter note listed for it!`);
-        }
-
-        // 6. Return the finalized chat response to Twitch
-        return res.send(`This game (${foundGame.title}) was ${notes.trim()}!`);
+        return res.send(`This game (${foundTitle}) was ${finalNote.trim()}!`);
 
     } catch (error) {
         console.error(error);
