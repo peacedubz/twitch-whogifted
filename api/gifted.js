@@ -33,26 +33,28 @@ module.exports = async (req, res) => {
             return res.send("Error: Could not find the Super Sundays list data.");
         }
 
-        // Search through the games list
-        const games = Object.values(targetList.games || {});
-        let foundGame = null;
+        // THE FIX: Dig one layer deeper into the nested 'game' object to find the title
+        const entries = Object.values(targetList.games || {});
+        let foundEntry = null;
 
-        for (const game of games) {
-            if (game.title && game.title.toLowerCase().includes(searchGame)) {
-                foundGame = game;
+        for (const entry of entries) {
+            // We check entry.game.title instead of entry.title
+            if (entry.game && entry.game.title && entry.game.title.toLowerCase().includes(searchGame)) {
+                foundEntry = entry;
                 break;
             }
         }
 
-        if (!foundGame) {
+        if (!foundEntry) {
             return res.send(`Could not find "${req.query.game}" in the Super Sundays list.`);
         }
 
-        if (!foundGame.note) {
-             return res.send(`"${foundGame.title}" is in Super Sundays, but there is no note attached!`);
+        if (!foundEntry.note) {
+             return res.send(`"${foundEntry.game.title}" is in Super Sundays, but there is no note attached!`);
         }
         
-        return res.send(`This game (${foundGame.title}) was ${foundGame.note.trim()}!`);
+        // Pull the title from the nested object, and the note from the parent object
+        return res.send(`This game (${foundEntry.game.title}) was ${foundEntry.note.trim()}!`);
 
     } catch (error) {
         return res.send(`API Error: ${error.message}`);
