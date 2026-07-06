@@ -8,7 +8,15 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const { data } = await axios.get('https://gwaulww2tc.execute-api.eu-west-3.amazonaws.com/profile/peacedubz');
+        const { data } = await axios.get('https://gwaulww2tc.execute-api.eu-west-3.amazonaws.com/profile/peacedubz', {
+            headers: {
+                "accept": "*/*",
+                "accept-language": "en-US,en;q=0.9",
+                "authorization": "eyJraWQiOiJ4Q2lScU84WkhUMklucUJGMkg4eHQ1YUJ3Y0NWSnRVeWxMQnpxdHFrT1djPSIsImFsZyI6IlJTMjU2In0.eyJhdF9oYXNoIjoiX2VkQmxQUkVMNjZpbWthMG5vcWRCdyIsInN1YiI6ImU2YmY3NDdiLWY5NjctNDVlYi1hNjYwLWFkNDE5OGI0Yjk3YSIsImNvZ25pdG86Z3JvdXBzIjpbImV1LWNlbnRyYWwtMV9RZEJ3NmtJbnBfVHdpdGNoIl0sImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwiaXNzIjoiaHR0cHM6Ly9jb2duaXRvLWlkcC5ldS1jZW50cmFsLTEuYW1hem9uYXdzLmNvbS9ldS1jZW50cmFsLTFfUWRCdzZrSW5wIiwiY29nbml0bzp1c2VybmFtZSI6IlR3aXRjaF8xMTk2NzY1NjYiLCJhdWQiOiI2cXRxMDU5cXM4cTV2dDRzaTZkZ3B1MWU2ciIsImlkZW50aXRpZXMiOlt7ImRhdGVDcmVhdGVkIjoiMTcxNTI3ODYzMDYzOCIsInVzZXJJZCI6IjExOTY3NjU2NiIsInByb3ZpZGVyTmFtZSI6IlR3aXRjaCIsInByb3ZpZGVyVHlwZSI6Ik9JREMiLCJpc3N1ZXIiOm51bGwsInByaW1hcnkiOiJ0cnVlIn1dLCJ0b2tlbl91c2UiOiJpZCIsImF1dGhfdGltZSI6MTc4MjEzNjI0NCwiY3VzdG9tOnByb2ZpbGVLc3VpZCI6IjJnRjFvY0JtZjhxNjNFYjI2VE5lZUx0YmdsMSIsImV4cCI6MTc4MzMyNzAxOSwiaWF0IjoxNzgzMzIzNDE5LCJlbWFpbCI6InBlYWNld29sZmNyZWF0aW9uc0BnbWFpbC5jb20ifQ.d6d_FgZJwYBptEk2Dd8Osu67B9MPyaSnD06ZrDj9c97RX4emaHmHxrQA3t8Fxx73wNVMlukNxcGV_VosOatS1-HkHpxkGPsZyYlpWPueB1JNqPUL5nvJZmnBjomsNIpDPE_SFmU2BFBamF8Bmflb6-3SdwAQK302DfOerPvOwHOCp0cdptHkczTtENxlmoaIq4TLV5tyEi4p_qN28NcAVflayG_lYxOdxid4FYQLyiZJbiCih6AkFDbS4TSMMs3wUHIhduptjkgV7JBi4GIc3dnff-9S4dBloSrgtdkJzOeA6K7AlJ82UQciKfe542HEE_W_kZTvdmQMPLb7AoUQXw",
+                "x-auth-type": "GlobalApiOptionalAuth",
+                "Referer": "https://www.rankone.global/"
+            }
+        });
 
         const collections = data.collections || {};
         let targetList = null;
@@ -25,7 +33,7 @@ module.exports = async (req, res) => {
             return res.send("Error: Could not find the Super Sundays list data.");
         }
 
-        // THE FIX: Convert RankOne's dictionary object of games into a searchable list
+        // Search through the games list
         const games = Object.values(targetList.games || {});
         let foundGame = null;
 
@@ -47,7 +55,6 @@ module.exports = async (req, res) => {
         return res.send(`This game (${foundGame.title}) was ${foundGame.note.trim()}!`);
 
     } catch (error) {
-        // If it fails now, it will print the exact JavaScript or Server error to your chat
         return res.send(`API Error: ${error.message}`);
     }
 };
