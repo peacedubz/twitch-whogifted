@@ -21,13 +21,19 @@ module.exports = async (req, res) => {
         const collections = data.collections || {};
         let targetLists = [];
 
-        // Look for BOTH list descriptions and save any that match
+        // Safely check descriptions and names without triggering punctuation bugs
         for (const list of Object.values(collections)) {
-            if (list.description) {
-                const desc = list.description.toLowerCase();
-                if (desc.includes('gifted games from twitch viewers') || desc.includes("oh god we're really going to play these")) {
-                    targetLists.push(list);
-                }
+            const desc = list.description ? list.description.toLowerCase() : '';
+            const title = list.title ? list.title.toLowerCase() : ''; 
+            const name = list.name ? list.name.toLowerCase() : ''; 
+            
+            if (
+                desc.includes('gifted games from twitch viewers') || 
+                desc.includes('really going to play these') || 
+                title.includes('stinky sundays') || 
+                name.includes('stinky sundays')
+            ) {
+                targetLists.push(list);
             }
         }
 
@@ -37,11 +43,9 @@ module.exports = async (req, res) => {
 
         let foundEntry = null;
 
-        // Loop through all the lists we successfully saved
         for (const list of targetLists) {
             const entries = Object.values(list.games || {});
             
-            // Loop through the games in each list
             for (const entry of entries) {
                 if (entry.game && entry.game.title && entry.game.title.toLowerCase().includes(searchGame)) {
                     foundEntry = entry;
@@ -49,14 +53,14 @@ module.exports = async (req, res) => {
                 }
             }
             
-            // If we found the game in this list, stop checking the other lists
             if (foundEntry) {
                 break;
             }
         }
 
+        // Cleaned up the error output so stray spaces in the chat command don't look weird
         if (!foundEntry) {
-            return res.send(`Could not find "${req.query.game}" in the Super or Stinky Sundays lists.`);
+            return res.send(`Could not find "${searchGame}" in the Super or Stinky Sundays lists.`);
         }
 
         if (!foundEntry.note) {
