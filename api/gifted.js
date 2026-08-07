@@ -19,41 +19,50 @@ module.exports = async (req, res) => {
         });
 
         const collections = data.collections || {};
-        let targetList = null;
+        let targetLists = [];
 
-        // Find the Super Sundays list by its description
+        // Look for BOTH list descriptions and save any that match
         for (const list of Object.values(collections)) {
-            if (list.description && list.description.toLowerCase().includes('gifted games from twitch viewers')) {
-                targetList = list;
-                break;
+            if (list.description) {
+                const desc = list.description.toLowerCase();
+                if (desc.includes('gifted games from twitch viewers') || desc.includes("oh god we're really going to play these")) {
+                    targetLists.push(list);
+                }
             }
         }
 
-        if (!targetList) {
-            return res.send("Error: Could not find the Super Sundays list data.");
+        if (targetLists.length === 0) {
+            return res.send("Error: Could not find the data for your target lists.");
         }
 
-        // THE FIX: Dig one layer deeper into the nested 'game' object to find the title
-        const entries = Object.values(targetList.games || {});
         let foundEntry = null;
 
-        for (const entry of entries) {
-            // We check entry.game.title instead of entry.title
-            if (entry.game && entry.game.title && entry.game.title.toLowerCase().includes(searchGame)) {
-                foundEntry = entry;
+        // Loop through all the lists we successfully saved
+        for (const list of targetLists) {
+            const entries = Object.values(list.games || {});
+            
+            // Loop through the games in each list
+            for (const entry of entries) {
+                if (entry.game && entry.game.title && entry.game.title.toLowerCase().includes(searchGame)) {
+                    foundEntry = entry;
+                    break;
+                }
+            }
+            
+            // If we found the game in this list, stop checking the other lists
+            if (foundEntry) {
                 break;
             }
         }
 
         if (!foundEntry) {
-            return res.send(`Could not find "${req.query.game}" in the Super Sundays list.`);
+            return res.send(`Could not find "${req.query.game}" in the Super or Stinky Sundays lists.`);
         }
 
         if (!foundEntry.note) {
-             return res.send(`"${foundEntry.game.title}" is in Super Sundays, but there is no note attached!`);
+             return res.send(`"${foundEntry.game.title}" is on the list, but there is no note attached!`);
         }
         
-        // Pull the title from the nested object, and the note from the parent object
         return res.send(`This game (${foundEntry.game.title}) was ${foundEntry.note.trim()}!`);
 
     } catch (error) {
